@@ -183,9 +183,23 @@ export default {
         }
         // 根据 val 和 old 找到缺失的那个，从 sortChecked 中去掉。
         let diffItem = '';
+        // 初始化赋值
+        if (val && old === null) {
+          const nodes = this.getFlattedNodes();
+          this.sortChecked = val.reduce((total, item) => {
+            if (emitPath) {
+              total.push(nodes.find(node => isEmpty(node.path, item)));
+            } else {
+              total.push(nodes.find(node => node.value === item));
+            }
+            return total;
+          }, []);
+          return;
+        }
         if (val.length >= old.length) {
           return;
-        } else if (val.length === 0 && old.length === 1) {
+        }
+        if (val.length === 0 && old.length === 1) {
           diffItem = old[0];
         } else {
           for (let i = 0; i < old.length; i++) {
@@ -204,8 +218,9 @@ export default {
         if (diffItem) {
           if (emitPath) {
             this.sortChecked = this.sortChecked.filter(item => !isEqual(item.path, diffItem));
+          } else {
+            this.sortChecked = this.sortChecked.filter((item) => item.value !== diffItem);
           }
-          this.sortChecked = this.sortChecked.filter((item) => item.value !== diffItem);
         }
       }
     }
