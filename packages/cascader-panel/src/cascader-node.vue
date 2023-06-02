@@ -82,6 +82,11 @@
 
       handleMultiCheckChange(checked) {
         this.node.doCheck(checked);
+        if (checked) {
+          this.panel.sortChecked.push(this.node);
+        } else {
+          this.panel.sortChecked = this.panel.sortChecked.filter(item => item.value !== this.node.value);
+        }
         this.panel.calculateMultiCheckedValue();
       },
 

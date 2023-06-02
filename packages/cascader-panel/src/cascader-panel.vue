@@ -110,7 +110,8 @@ export default {
       store: [],
       menus: [],
       activePath: [],
-      loadCount: 0
+      loadCount: 0,
+      sortChecked: [] // 点击勾选的数据，仅在 checkStrictly = true 时正确。
     };
   },
 
@@ -147,11 +148,65 @@ export default {
       immediate: true,
       deep: true
     },
-    checkedValue(val) {
+    checkedValue(val, old) {
+      const { config } = this;
+      const { checkStrictly, emitPath, sortChecked } = config;
       if (!isEqual(val, this.value)) {
         this.checkStrictly && this.calculateCheckedNodePaths();
-        this.$emit('input', val);
-        this.$emit('change', val);
+
+        if (checkStrictly && sortChecked) {
+          const vals = [];
+          if (emitPath) {
+            // 返回每项的整个路径：[[key, key], [key, key], [key, key]]
+            this.sortChecked.reduce((total, item) => {
+              total.push(item.path);
+              return total;
+            }, vals);
+          } else {
+            // 返回每项自己：[key, key, key]
+            this.sortChecked.reduce((total, item) => {
+              total.push(item.value);
+              return total;
+            }, vals);
+          }
+          this.$emit('input', vals);
+          this.$emit('change', vals);
+        } else {
+          this.$emit('input', val);
+          this.$emit('change', val);
+        }
+      } else {
+        // 这里处理从外部被改动的情况
+        // 仅处理 checkStrictly && sortChecked
+        if (!checkStrictly || !sortChecked) {
+          return;
+        }
+        // 根据 val 和 old 找到缺失的那个，从 sortChecked 中去掉。
+        let diffItem = '';
+        if (val.length >= old.length) {
+          return;
+        } else if (val.length === 0 && old.length === 1) {
+          diffItem = old[0];
+        } else {
+          for (let i = 0; i < old.length; i++) {
+            let found = false;
+            for (let j = 0; j < val.length; j++) {
+              if (old[i] === val[j]) {
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              diffItem = old[i];
+            }
+          }
+        }
+        if (diffItem) {
+          if (emitPath) {
+            this.sortChecked = this.sortChecked.filter(item => !isEqual(item.path, diffItem));
+          }
+          this.sortChecked = this.sortChecked.filter((item) => item.value !== diffItem);
+        }
       }
     }
   },
@@ -364,8 +419,13 @@ export default {
       return this.store.getFlattedNodes(leafOnly, cached);
     },
     getCheckedNodes(leafOnly) {
-      const { checkedValue, multiple } = this;
+      const { checkedValue, multiple, config } = this;
+      const { checkStrictly, sortChecked } = config;
       if (multiple) {
+        if (checkStrictly && sortChecked) {
+          // todo 这里没考虑 leafOnly 参数
+          return this.sortChecked;
+        }
         const nodes = this.getFlattedNodes(leafOnly);
         return nodes.filter(node => node.checked);
       } else {
@@ -381,6 +441,7 @@ export default {
         this.getCheckedNodes(leafOnly)
           .filter(node => !node.isDisabled)
           .forEach(node => node.doCheck(false));
+        this.sortChecked = [];
         this.calculateMultiCheckedValue();
       } else {
         this.checkedValue = emitPath ? [] : null;
